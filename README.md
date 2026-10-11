@@ -59,6 +59,34 @@ curl -s localhost:18080/api/db    # app performs a real Postgres handshake
 
 See [`local/README.md`](local/README.md) for how each container maps to a module.
 
+## Security
+
+The app and the local edge are hardened, and every control is pinned by a
+test — see [SECURITY.md](SECURITY.md) for the threat-model table. The short
+version, with the fail-closed behaviour visible from the outside:
+
+```bash
+curl -s -X POST localhost:18080/api/webhook -d '{"event":"x"}'
+# 503 {"error":"webhook disabled"} — signatures are MANDATORY; no secret
+# configured means the endpoint is closed, never "accept unsigned"
+
+curl -s localhost:18080/api/admin/stats
+# 503 {"error":"admin disabled"} — same fail-closed shape; with ADMIN_TOKEN
+# set, auth is a constant-time (hmac.compare_digest) bearer check
+
+curl -s 'localhost:18080/api/fetch?url=http://169.254.169.254/latest/meta-data/'
+# 403 {"error":"blocked address"} — SSRF guard: every resolved IP is checked
+# against private/loopback/link-local/reserved space; redirects are refused
+```
+
+CI runs the security test suite (41 tests, no network), bandit, pip-audit
+(the app is stdlib-only, so "zero dependencies" is machine-checked), and
+gitleaks — with all actions pinned to full commit SHAs.
+
+```bash
+python -m pytest app/tests -q   # the whole security suite, offline
+```
+
 ## Design notes
 
 **Least privilege as a module interface.** `iam-roles` takes *resource ARNs*,
