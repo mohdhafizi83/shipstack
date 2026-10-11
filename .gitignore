@@ -1,0 +1,10 @@
+.terraform/
+# lock file IS committed: CI must resolve the same provider versions
+*.tfstate
+*.tfstate.*
+tfplan
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+pgdata/

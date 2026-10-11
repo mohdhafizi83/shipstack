@@ -1,0 +1,52 @@
+# Local parity stack: the same app/postgres/nginx flow the cloud modules
+# describe, runnable with zero AWS account. See local/README.md for the
+# mapping between this stack and the Terraform modules.
+#
+# Usage (from the repo root):
+#   docker compose up --build
+#   curl -s localhost:18080/healthz
+#   curl -s localhost:18080/        # static site through the nginx "ALB"
+#   curl -s localhost:18080/api/db  # app queries postgres
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: localdevonly
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: ./app
+    environment:
+      APP_ENV: local
+      DB_HOST: db
+      DB_NAME: app
+      DB_USER: app
+      DB_PASSWORD: localdevonly
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # nginx here plays the role of the ALB: reverse proxy in front of the app,
+  # static files served alongside (CloudFront's half of the story).
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "18080:80"
+    volumes:
+      - ./local/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./site:/usr/share/nginx/html:ro
+    depends_on:
+      - app
+
+volumes:
+  pgdata:

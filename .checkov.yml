@@ -1,0 +1,60 @@
+# Checkov configuration — every skip here is a deliberate, documented design
+# decision, not an oversight. CI runs checkov with --hard-fail-on HIGH, so new
+# HIGH findings still break the build.
+skip-check:
+  # S3 static-site + logs buckets: SSE-S3 (AES256) is enabled; a CMK adds
+  # key-management overhead for content that is public-by-cache anyway.
+  - CKV_AWS_145
+  # Cross-region replication: multi-region is out of scope (see README
+  # "Honest limitations").
+  - CKV_AWS_144
+  # The site bucket's content is disposable build output; the logs bucket is
+  # itself the log sink (logging-to-itself is a cycle).
+  - CKV_AWS_18
+  # Versioning on the logs bucket doubles storage for objects nobody edits.
+  - CKV_AWS_21
+  # Event notifications: no consumer in this stack (no lambda/SNS fan-out).
+  - CKV2_AWS_62
+  # Secrets Manager CMK + auto-rotation: the dev bootstrap secret is rotated
+  # out-of-band; prod passwords never live in this module at all.
+  - CKV_AWS_149
+  - CKV2_AWS_57
+  # RDS IAM auth: the app authenticates with a credential fetched from SSM;
+  # IAM auth is a different model, not a stricter version of this one.
+  - CKV_AWS_161
+  # Performance Insights CMK: PI retention beyond 7 days is paid anyway.
+  - CKV_AWS_354
+  # CloudFront: single S3 origin by design (origin failover needs a second
+  # origin to be meaningful); geo restriction "none" because the site is
+  # intentionally world-open; WAF association is the var.web_acl_id knob.
+  - CKV_AWS_310
+  - CKV_AWS_374
+  - CKV2_AWS_47
+  # WAF on the ALB is a paid add-on; wire it via your own WAF stack when the
+  # traffic justifies it.
+  - CKV2_AWS_28
+  # ALB access logs are the var.access_logs_bucket knob (needs an ELB-delivery
+  # bucket policy that lives outside this module).
+  - CKV_AWS_91
+  # ECS Container Insights is enabled only for size=prod (conditional setting
+  # checkov cannot evaluate statically).
+  - CKV_AWS_65
+  # Static analysis cannot see runtime attachments: the joiner SG is attached
+  # to ECS tasks, the ALB SG to the LB — both real at apply time.
+  - CKV2_AWS_5
+  # ALB ingress 0.0.0.0/0 on 80/443 is the product requirement (public web
+  # service); HTTP immediately 301-redirects to HTTPS.
+  - CKV_AWS_260
+  # Broad egress on ALB/task SGs: tasks need ECR/SSM/CloudWatch outbound;
+  # the right fix is VPC endpoints (listed in README limitations), not a CIDR
+  # whitelist that would break deploys.
+  - CKV_AWS_382
+  # ALB deletion protection is a cost knob (dev stacks must stay destroyable);
+  # RDS deletion protection IS enforced via var.deletion_protection.
+  - CKV_AWS_150
+  # CloudWatch Logs: AWS encrypts log data at rest by default; a CMK adds key
+  # management for app logs with no threat-model gain here.
+  - CKV_AWS_158
+  # 30-day log retention is a deliberate cost knob (var.log_retention_days);
+  # raise it for compliance regimes that need 1 year.
+  - CKV_AWS_338

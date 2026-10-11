@@ -1,0 +1,77 @@
+# deploy.yml.example — NOT an active workflow (rename to deploy.yml to use).
+#
+# Pattern: every PR gets a `terraform plan` posted as a comment; merges to main
+# apply. Credentials come from OIDC (no long-lived keys in GitHub). Requires:
+#   - an IAM role whose trust policy federates against GitHub OIDC and is
+#     assumable by repo mohdhafizi83/shipstack
+#   - terraform.tfstate in the S3 backend described in examples/production
+#
+# Rename: mv .github/deploy.yml.example .github/workflows/deploy.yml
+
+name: deploy
+
+on:
+  pull_request:
+    paths: ["examples/production/**", "modules/**"]
+  push:
+    branches: [main]
+    paths: ["examples/production/**", "modules/**"]
+
+permissions:
+  contents: read
+  pull-requests: write   # post plan as PR comment
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: staging-plan
+    defaults:
+      run:
+        working-directory: examples/production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9.0"
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/shipstack-ci-plan
+          aws-region: us-east-1
+          role-session-name: gh-${{ github.run_id }}
+
+      - run: terraform init -input=false
+      - run: terraform plan -input=false -no-color -out=tfplan
+      - run: terraform show -no-color tfplan > plan.txt
+
+      - uses: mshick/add-pr-comment@v2
+        with:
+          message-path: plan.txt
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: []
+    runs-on: ubuntu-latest
+    environment: production   # GitHub env protection rule = human approval gate
+    defaults:
+      run:
+        working-directory: examples/production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9.0"
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/shipstack-ci-apply
+          aws-region: us-east-1
+          role-session-name: gh-${{ github.run_id }}
+
+      - run: terraform init -input=false
+      - run: terraform apply -input=false -auto-approve

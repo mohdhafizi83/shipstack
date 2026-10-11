@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>shipstack — local parity stack</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background: #0b0e14; color: #d8dee9; margin: 0; display: grid; place-items: center; min-height: 100vh; }
+    main { max-width: 40rem; padding: 2rem; }
+    h1 { color: #88c0d0; }
+    code { background: #1a2030; padding: .15rem .4rem; border-radius: 4px; }
+    a { color: #a3be8c; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>shipstack</h1>
+    <p>You are looking at the static half of the local parity stack — nginx is
+    playing the role CloudFront + S3 play in <code>modules/s3-static-site</code>.</p>
+    <p>Try the dynamic half: <a href="/healthz">/healthz</a> and
+    <a href="/api/db">/api/db</a> (proxied to the app container, the ALB +
+    Fargate story).</p>
+  </main>
+</body>
+</html>
