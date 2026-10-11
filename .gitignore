@@ -8,3 +8,7 @@ crash.*.log
 *.tfvars
 !*.tfvars.example
 pgdata/
+.venv*
+__pycache__/
+*.pyc
+

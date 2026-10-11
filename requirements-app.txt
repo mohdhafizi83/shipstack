@@ -1,0 +1,4 @@
+# The app container is deliberately stdlib-only — no third-party runtime
+# dependencies, which is the repo's selling point. This file exists so CI's
+# pip-audit job can *prove* the claim: zero dependencies => zero dependency
+# CVEs. If a dependency is ever added, it must appear here and get audited.
