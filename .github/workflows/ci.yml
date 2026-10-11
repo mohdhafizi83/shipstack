@@ -62,6 +62,6 @@ jobs:
         with:
           directory: .
           framework: terraform
-          quiet_policy: "true"
+          quiet: "true"
           soft_fail_on: LOW,MEDIUM
           hard_fail_on: HIGH
