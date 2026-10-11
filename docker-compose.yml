@@ -7,6 +7,10 @@
 #   curl -s localhost:18080/healthz
 #   curl -s localhost:18080/        # static site through the nginx "ALB"
 #   curl -s localhost:18080/api/db  # app queries postgres
+#
+# Hardening: app + nginx run read-only with all capabilities dropped and no
+# privilege escalation — the container analogue of the task-definition
+# `readonlyRootFilesystem: true, runtimePlatform` posture in ecs-service.
 
 services:
   db:
@@ -32,9 +36,20 @@ services:
       DB_NAME: app
       DB_USER: app
       DB_PASSWORD: localdevonly
+      # The app's SSRF guard blocks private space by default (fail closed);
+      # the compose DB genuinely lives on the Docker bridge network, so that
+      # one range is explicitly allowed here — the analogue of a scoped SG.
+      DB_ALLOWED_CIDRS: 172.16.0.0/12
     depends_on:
       db:
         condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64k
 
   # nginx here plays the role of the ALB: reverse proxy in front of the app,
   # static files served alongside (CloudFront's half of the story).
@@ -47,6 +62,26 @@ services:
       - ./site:/usr/share/nginx/html:ro
     depends_on:
       - app
+    read_only: true
+    cap_drop:
+      - ALL
+    # The nginx master (running as root) chowns its temp/cache paths and
+    # setuid/setgid's its workers to the `nginx` user at startup; with ALL
+    # dropped those fail. CHOWN/SETUID/SETGID are the three it genuinely
+    # needs — everything else stays dropped, and no-new-privileges still
+    # blocks gaining anything back.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    # nginx needs writable scratch for temp files + its cache dirs when the
+    # root filesystem is read-only.
+    tmpfs:
+      - /tmp:size=64k
+      - /var/cache/nginx:size=64k
+      - /var/run
 
 volumes:
   pgdata:
