@@ -9,6 +9,9 @@ permissions:
   contents: read
 
 jobs:
+  # Actions are pinned to full commit SHAs (supply-chain: a tag re-point or
+  # compromised maintainer account can't inject code into CI). Resolve
+  # updates with: gh api repos/<owner>/<repo>/git/ref/tags/<tag>
   terraform:
     name: fmt / validate / plan / checkov
     runs-on: ubuntu-latest
@@ -17,10 +20,10 @@ jobs:
         working-directory: examples/production
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: "~> 1.9.0"
           terraform_wrapper: false
@@ -58,10 +61,59 @@ jobs:
         run: terraform show -no-color tfplan | tail -n 5
 
       - name: Checkov IaC scan (fail on HIGH)
-        uses: bridgecrewio/checkov-action@v12
+        uses: bridgecrewio/checkov-action@d0dd2e9434b4428060edba72d050c135273bd677 # v12
         with:
           directory: .
           framework: terraform
           quiet: "true"
           soft_fail_on: LOW,MEDIUM
           hard_fail_on: HIGH
+
+  app-tests:
+    name: app security tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: pytest (no network needed)
+        run: python -m pytest app/tests -q
+
+  python-scan:
+    name: bandit + pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install scanners
+        run: pip install bandit pip-audit
+
+      - name: bandit (SAST on the app)
+        run: bandit -r app/app.py -q
+
+      # The app is stdlib-only: requirements-app.txt declares zero deps, so
+      # pip-audit passing is a *proof* of that claim, not a formality.
+      - name: pip-audit (dependency audit)
+        run: pip-audit -r requirements-app.txt
+
+  secret-scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0   # gitleaks needs history to scan commits
+
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

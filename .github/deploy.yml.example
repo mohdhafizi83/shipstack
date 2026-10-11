@@ -3,12 +3,22 @@
 # Pattern: every PR gets a `terraform plan` posted as a comment; merges to main
 # apply. Credentials come from OIDC (no long-lived keys in GitHub). Requires:
 #   - an IAM role whose trust policy federates against GitHub OIDC and is
-#     assumable by repo mohdhafizi83/shipstack
+#     assumable by repo mohdhafizi83/shipstack — scope the trust policy to
+#     THIS repo (and ideally a GitHub `environment` with required reviewers),
+#     otherwise any repo under the same account/personal account can assume
+#     the role and apply arbitrary infra
 #   - terraform.tfstate in the S3 backend described in examples/production
 #
 # Rename: mv .github/deploy.yml.example .github/workflows/deploy.yml
 
 name: deploy
+
+# Serialize applies: two concurrent `terraform apply` runs against the same
+# state will corrupt or race each other. Queuing (not cancelling) means every
+# merged change eventually lands.
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
 
 on:
   pull_request:
